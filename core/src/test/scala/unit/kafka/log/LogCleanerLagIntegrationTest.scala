@@ -114,7 +114,7 @@ class LogCleanerLagIntegrationTest(compressionCodecName: String) extends Logging
       if (entry.message.compressionCodec == NoCompressionCodec)
         Stream.cons(entry, Stream.empty).iterator
       else
-        ByteBufferMessageSet.deepIterator(entry)
+        ByteBufferMessageSet.deepIterator(entry.message)
     }) yield {
       val key = TestUtils.readString(messageAndOffset.message.key).toInt
       val value = TestUtils.readString(messageAndOffset.message.payload).toInt
