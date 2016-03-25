@@ -36,7 +36,7 @@ import scala.collection.Iterable
 class LogCleanerManagerTest extends JUnitSuite with Logging {
 
   val tmpdir = TestUtils.tempDir()
-  val dir = TestUtils.randomPartitionLogDir(tmpdir)
+  val dir = TestUtils.tempDir()
   val logProps = new Properties()
   logProps.put(LogConfig.SegmentBytesProp, 1024: java.lang.Integer)
   logProps.put(LogConfig.SegmentIndexBytesProp, 1024: java.lang.Integer)
