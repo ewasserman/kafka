@@ -43,8 +43,6 @@ object Defaults {
   val FileDeleteDelayMs = kafka.server.Defaults.LogDeleteDelayMs
   val DeleteRetentionMs = kafka.server.Defaults.LogCleanerDeleteRetentionMs
   val MinCompactionLagMs = kafka.server.Defaults.LogCleanerMinCompactionLagMs
-  val MinCompactionLagMessages = kafka.server.Defaults.LogCleanerMinCompactionLagMessages
-  val MinCompactionLagBytes = kafka.server.Defaults.LogCleanerMinCompactionLagBytes
   val MinCleanableDirtyRatio = kafka.server.Defaults.LogCleanerMinCleanRatio
   val Compact = kafka.server.Defaults.LogCleanupPolicy
   val UncleanLeaderElectionEnable = kafka.server.Defaults.UncleanLeaderElectionEnable
@@ -74,8 +72,6 @@ case class LogConfig(props: java.util.Map[_, _]) extends AbstractConfig(LogConfi
   val fileDeleteDelayMs = getLong(LogConfig.FileDeleteDelayMsProp)
   val deleteRetentionMs = getLong(LogConfig.DeleteRetentionMsProp)
   val compactionLagMs = getLong(LogConfig.MinCompactionLagMsProp)
-  val compactionLagMessages = getLong(LogConfig.MinCompactionLagMessagesProp)
-  val compactionLagBytes = getLong(LogConfig.MinCompactionLagBytesProp)
   val minCleanableRatio = getDouble(LogConfig.MinCleanableDirtyRatioProp)
   val compact = getString(LogConfig.CleanupPolicyProp).toLowerCase(Locale.ROOT) != LogConfig.Delete
   val uncleanLeaderElectionEnable = getBoolean(LogConfig.UncleanLeaderElectionEnableProp)
@@ -111,8 +107,6 @@ object LogConfig {
   val IndexIntervalBytesProp = "index.interval.bytes"
   val DeleteRetentionMsProp = "delete.retention.ms"
   val MinCompactionLagMsProp = "min.compaction.lag.ms"
-  val MinCompactionLagMessagesProp = "min.compaction.lag.messages"
-  val MinCompactionLagBytesProp = "min.compaction.lag.bytes"
   val FileDeleteDelayMsProp = "file.delete.delay.ms"
   val MinCleanableDirtyRatioProp = "min.cleanable.dirty.ratio"
   val CleanupPolicyProp = "cleanup.policy"
@@ -139,10 +133,6 @@ object LogConfig {
   val DeleteRetentionMsDoc = "The time to retain delete markers in the log. Only applicable for logs that are being" +
     " compacted."
   val MinCompactionLagMsDoc = "The minimum time a message will remain uncompacted in the log. Only applicable for logs that are being" +
-    " compacted."
-  val MinCompactionLagMessagesDoc = "The minimum number of messages in a partition that will remain uncompacted in the head of the log. Only applicable for logs that are being" +
-    " compacted."
-  val MinCompactionLagBytesDoc = "The minimum aggregate size of a messages in a partition that will remain uncompacted in the head of the log. Only applicable for logs that are being" +
     " compacted."
   val MinCleanableRatioDoc = "The ratio of bytes that are available for cleaning to the bytes already cleaned"
   val CompactDoc = "Should old segments in this log be deleted or deduplicated?"
@@ -178,8 +168,6 @@ object LogConfig {
       .define(IndexIntervalBytesProp, INT, Defaults.IndexInterval, atLeast(0), MEDIUM,  IndexIntervalDoc)
       .define(DeleteRetentionMsProp, LONG, Defaults.DeleteRetentionMs, atLeast(0), MEDIUM, DeleteRetentionMsDoc)
       .define(MinCompactionLagMsProp, LONG, Defaults.MinCompactionLagMs, atLeast(0), MEDIUM, MinCompactionLagMsDoc)
-      .define(MinCompactionLagMessagesProp, LONG, Defaults.MinCompactionLagMessages, atLeast(0), MEDIUM, MinCompactionLagMessagesDoc)
-      .define(MinCompactionLagBytesProp, LONG, Defaults.MinCompactionLagBytes, atLeast(0), MEDIUM, MinCompactionLagBytesDoc)
       .define(FileDeleteDelayMsProp, LONG, Defaults.FileDeleteDelayMs, atLeast(0), MEDIUM, FileDeleteDelayMsDoc)
       .define(MinCleanableDirtyRatioProp, DOUBLE, Defaults.MinCleanableDirtyRatio, between(0, 1), MEDIUM,
         MinCleanableRatioDoc)

@@ -108,7 +108,7 @@ class CleanerTest extends JUnitSuite {
   }
 
   @Test
-  def testCleaningWithUncleanableSection() {
+  def testCleaningWithUncleanableSection(): Unit = {
     val cleaner = makeCleaner(Int.MaxValue)
     val logProps = new Properties()
     logProps.put(LogConfig.SegmentBytesProp, 1024: java.lang.Integer)

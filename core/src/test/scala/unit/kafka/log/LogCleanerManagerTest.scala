@@ -140,36 +140,6 @@ class LogCleanerManagerTest extends JUnitSuite with Logging {
     assertEquals("The first uncleanable offset begins with active segment.", log.activeSegment.baseOffset, cleanableOffsets._2)
   }
 
-  /**
-    * Test computation of cleanable range with a minimum compaction lag size (bytes)
-    */
-  @Test
-  def testCleanableOffsetsForSize(): Unit = {
-    val byteLag = 2000
-    val logProps = new Properties()
-    logProps.put(LogConfig.SegmentBytesProp, 1024: java.lang.Integer)
-    logProps.put(LogConfig.MinCompactionLagBytesProp, byteLag: java.lang.Integer)
-
-    val log = makeLog(config = LogConfig.fromProps(logConfig.originals, logProps))
-
-    while(log.numberOfSegments < 8)
-      log.append(message(log.logEndOffset.toInt, log.logEndOffset.toInt))
-
-    debug(s"segment baseOffset->size: ${log.logSegments.map(s => s"${s.baseOffset}->${s.size}").mkString(", ")}")
-
-    val sizeLagSegment = computeSizeLagSegment(log, byteLag)
-
-    val logSize = log.logSegments.map(_.size).sum - log.activeSegment.size
-    assertTrue("Log must be large enough to be an effective test.", logSize - log.activeSegment.size > byteLag)
-    assertTrue("Active segment must be smaller than byte lag to be an effective test.", byteLag > log.activeSegment.size)
-
-    val topicAndPartition = TopicAndPartition("log", 0)
-    val lastClean = Map(topicAndPartition-> 0L)
-    val cleanableOffsets = LogCleanerManager.cleanableOffsets(log, topicAndPartition, lastClean, time.milliseconds)
-    assertEquals("The first cleanable region starts at the beginning of the log.", 0L, cleanableOffsets._1)
-    assertEquals("The uncleanable region begins at the base offset with ", sizeLagSegment.baseOffset, cleanableOffsets._2)
-  }
-
   /*
    * Compute the first segment in the tail that contains the specified size
    */
@@ -182,79 +152,6 @@ class LogCleanerManagerTest extends JUnitSuite with Logging {
         lagSegment = s
     }
     lagSegment
-  }
-
-  /**
-    * Test computation of cleanable range with a minimum compaction lag message count
-    */
-  @Test
-  def testCleanableOffsetsForMessages(): Unit = {
-    val messageLag = 50
-    val logProps = new Properties()
-    logProps.put(LogConfig.SegmentBytesProp, 1024: java.lang.Integer)
-    logProps.put(LogConfig.MinCompactionLagMessagesProp, messageLag: java.lang.Integer)
-
-    val log = makeLog(config = LogConfig.fromProps(logConfig.originals, logProps))
-
-    while(log.numberOfSegments < 8)
-      log.append(message(log.logEndOffset.toInt, log.logEndOffset.toInt))
-
-    debug(s"segment baseOffset->nextOffset: ${log.logSegments.map(s => s"${s.baseOffset}->${s.nextOffset}").mkString(", ")}")
-
-    val messages = readFromLog(log).toSeq
-    val offsetOfMessageAtLag = messages.takeRight(messageLag).head._1 // since the message key equals the (zero-based) ordinal message number
-    val firstUncleanableSegment = log.logSegments.find { s => s.nextOffset() > offsetOfMessageAtLag }.get
-
-    assertTrue("Log must be large enough to be an effective test.", log.activeSegment.nextOffset - 1 > messageLag)
-
-    val topicAndPartition = TopicAndPartition("log", 0)
-    val lastClean = Map(topicAndPartition-> 0L)
-    val cleanableOffsets = LogCleanerManager.cleanableOffsets(log, topicAndPartition, lastClean, time.milliseconds)
-    assertEquals("The first cleanable region starts at the beginning of the log.", 0L, cleanableOffsets._1)
-    assertEquals("The uncleanable region begins at the base offset with ", firstUncleanableSegment.baseOffset, cleanableOffsets._2)
-  }
-
-  /**
-    * Test computation of cleanable range with both a minimum compaction lag message count and minimum compaction
-    * lag size (bytes)
-    */
-  @Test
-  def testCleanableOffsetsForTwo(): Unit = {
-    val messageLag = 70
-    val byteLag = 2000
-    val logProps = new Properties()
-    logProps.put(LogConfig.SegmentBytesProp, 1024: java.lang.Integer)
-    logProps.put(LogConfig.MinCompactionLagMessagesProp, messageLag: java.lang.Integer)
-    logProps.put(LogConfig.MinCompactionLagBytesProp, byteLag: java.lang.Integer)
-
-    val log = makeLog(config = LogConfig.fromProps(logConfig.originals, logProps))
-
-    while(log.numberOfSegments < 8)
-      log.append(message(log.logEndOffset.toInt, log.logEndOffset.toInt))
-
-    debug(s"segment baseOffset->nextOffset (size): ${log.logSegments.map(s => s"${s.baseOffset}->${s.nextOffset} (${s.size})").mkString(", ")}")
-
-    val sizeLagSegment = computeSizeLagSegment(log, byteLag)
-
-    val messages = readFromLog(log).toSeq
-    val offsetOfMessageAtLag = messages.takeRight(messageLag).head._1 // since the message key equals the (zero-based) ordinal message number
-    val messageLagSegment = log.logSegments.find { s => s.nextOffset() > offsetOfMessageAtLag }.get
-
-    assertNotEquals("The message and size compaction lags should yield different offsets for an effective test.", sizeLagSegment.baseOffset, messageLagSegment.baseOffset)
-
-    val smallerOffset = math.min(sizeLagSegment.baseOffset, messageLagSegment.baseOffset)
-
-    val logSize = log.logSegments.map(_.size).sum - log.activeSegment.size
-    assertTrue("Log must be large enough to be an effective test.", logSize - log.activeSegment.size > byteLag)
-    assertTrue("Log must be large enough to be an effective test.", log.activeSegment.nextOffset - 1 > messageLag)
-    assertTrue("Active segment should be smaller than the lag segments", log.activeSegment.baseOffset > sizeLagSegment.baseOffset)
-    assertTrue("Active segment should have fewer messages than the lag segments", log.activeSegment.baseOffset > messageLagSegment.baseOffset)
-
-    val topicAndPartition = TopicAndPartition("log", 0)
-    val lastClean = Map(topicAndPartition-> 0L)
-    val cleanableOffsets = LogCleanerManager.cleanableOffsets(log, topicAndPartition, lastClean, time.milliseconds)
-    assertEquals("The first cleanable region starts at the beginning of the log.", 0L, cleanableOffsets._1)
-    assertEquals("The uncleanable region begins at the base offset with ", smallerOffset, cleanableOffsets._2)
   }
 
   def makeLog(dir: File = dir, config: LogConfig = logConfig) =

@@ -18,16 +18,21 @@
 package kafka.log
 
 import java.io.File
+
 import kafka.metrics.KafkaMetricsGroup
 import com.yammer.metrics.core.Gauge
-import kafka.utils.{Time, Logging, Pool}
+import kafka.utils.{Logging, Pool, Time}
 import kafka.server.OffsetCheckpoint
+
 import collection.mutable
 import collection.immutable
 import java.util.concurrent.locks.ReentrantLock
+
 import kafka.utils.CoreUtils._
 import java.util.concurrent.TimeUnit
+
 import kafka.common.{LogCleaningAbortedException, TopicAndPartition}
+import kafka.message.Message
 
 private[log] sealed trait LogCleaningState
 private[log] case object LogCleaningInProgress extends LogCleaningState
@@ -265,53 +270,27 @@ private[log] object LogCleanerManager extends Logging {
     val dirtySegments = log.logSegments(firstDirtyOffset, log.activeSegment.baseOffset).toArray :+ log.activeSegment
 
     val compactionLagMs = math.max(log.config.compactionLagMs, 0L)
-    val compactionLagBytes = math.max(log.config.compactionLagBytes, 0L)
-    val compactionLagMessages = math.max(log.config.compactionLagMessages, 0L)
-
-    // computes the size in bytes of a segment
-    def segmentBytes(segment: LogSegment): Long = { segment.size }
-
-    // computes the number of messages in a segment
-    def segmentMessages(segment: LogSegment): Long = { segment.nextOffset() - segment.baseOffset }
-
-    // determines the highest offset for which the cumulative lag first exceeds the specified minimum lag
-    def offsetAtLag(segmentSize: (LogSegment) => Long, minLag: Long): Option[Long] = {
-
-      // helper class to represent the offset with a cumulative size (i.e. lag in bytes, message count, etc.)
-      case class OffsetLag(offset: Long, lag: Long)
-
-      dirtySegments
-        .reverseMap { seg => OffsetLag(seg.baseOffset, segmentSize(seg)) }
-        .scanLeft(OffsetLag(Long.MaxValue, 0L)) { (acc, e) => OffsetLag(e.offset, acc.lag + e.lag) }
-        .find { t => t.lag > minLag }
-        .map(_.offset)
-    }
 
     // find first segment that cannot be cleaned
-    // neither the active segment, nor segments with messages closer to the end of the log than any of the compaction lag limits
-    // (time, bytes, or message count) may be cleaned
+    // neither the active segment, nor segments with any messages closer to the head of the log than the minimum compaction lag time
+    // may be cleaned
     val firstUncleanableDirtyOffset = Seq (
 
         // the active segment is always uncleanable
         Option(log.activeSegment.baseOffset),
 
-        // the first segment whose last modified time is within a time lag of now
+        // the first segment whose last message time is within a minimum time lag from now
         if (compactionLagMs > 0) {
           dirtySegments.find {
             case segment =>
-              debug(s"log=${log.name} segment.baseOffset=${segment.baseOffset} segment.lastModified=${segment.lastModified} now - lag=${now - compactionLagMs}")
-              segment.lastModified > now - compactionLagMs
+              segment.log.lastOption match {
+                case Some(lastMessage) =>
+                  val lastTime = if (lastMessage.message.timestamp != Message.NoTimestamp) lastMessage.message.timestamp else segment.lastModified
+                  debug(s"log=${log.name} segment.baseOffset=${segment.baseOffset} segment.lastModified=${segment.lastModified} last message.timestamp=${lastMessage.message.timestamp} now - lag=${now - compactionLagMs}")
+                  lastTime > now - compactionLagMs
+                case _ => false
+              }
           } map(_.baseOffset)
-        } else None,
-
-        // the first segment without enough cumulative bytes after it
-        if (compactionLagBytes > 0) {
-          offsetAtLag(segmentBytes, compactionLagBytes)
-        } else None,
-
-        // the first segment without enough messages after it
-        if (compactionLagMessages > 0) {
-          offsetAtLag(segmentMessages, compactionLagMessages)
         } else None
       ).flatten.min
 
